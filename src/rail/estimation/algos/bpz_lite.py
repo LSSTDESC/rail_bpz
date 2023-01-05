@@ -26,7 +26,6 @@ import scipy.integrate
 import glob
 import qp
 import tables_io
-import rail
 from ceci.config import StageParameter as Param
 from rail.estimation.estimator import CatEstimator, CatInformer
 from rail.estimation.algos import bpz_version
@@ -239,6 +238,14 @@ class Inform_BPZ_lite(CatInformer):
 
 class BPZ_lite(CatEstimator):
     """CatEstimator subclass to implement basic marginalized PDF for BPZ
+    In addition to the marginalized redshift PDF, we also compute several
+    ancillary quantities that will be stored in the ensemble ancil data:
+    zmode: mode of the PDF
+    amean: mean of the PDF
+    tb: integer specifying the best-fit SED *at the redshift mode*
+    todds: fraction of marginalized posterior prob. of best template,
+    so lower numbers mean other templates could be better fits, likely
+    at other redshifts
     """
     name = "BPZ_lite"
     config_options = CatEstimator.config_options.copy()
@@ -309,7 +316,7 @@ class BPZ_lite(CatEstimator):
         # If we are not the root process then we wait for
         # the root to (potentially) create all the templates before
         # reading them ourselves.
-        if self.rank > 0: # pragma: no cover
+        if self.rank > 0:  # pragma: no cover
             # The Barrier method causes all processes to stop
             # until all the others have also reached the barrier.
             # If our rank is > 0 then we must be running under MPI.
@@ -324,9 +331,8 @@ class BPZ_lite(CatEstimator):
             # If we are running MPI, then now we have created
             # the templates we let all the other processes that
             # stopped at the Barrier above continue and read them.
-            if self.is_mpi(): # pragma: no cover
+            if self.is_mpi():  # pragma: no cover
                 self.comm.Barrier()
-
 
     def open_model(self, **kwargs):
         CatEstimator.open_model(self, **kwargs)
@@ -483,7 +489,8 @@ class BPZ_lite(CatEstimator):
             post_z = np.convolve(post_z, kernel, 1)
 
         # Find the mode
-        zmode = self.zgrid[np.argmax(post_z)]
+        zpos = np.argmax(post_z)
+        zmode = self.zgrid[zpos]
 
         # Trim probabilities
         # below a certain threshold pct of p_max
@@ -497,7 +504,16 @@ class BPZ_lite(CatEstimator):
         if not np.isclose(post_z.sum(), 0.0):
             post_z /= post_z.sum()
 
-        return post_z, zmode
+        # Find T_B, the highest probability template *at zmode*
+        tmode = post[zpos, :]
+        t_b = np.argmax(tmode)
+
+        # compute TODDS, the fraction of probability of the "best" template
+        # relative to the other templates
+        tmarg = post.sum(axis=0)
+        todds = tmarg[t_b] / np.sum(tmarg)
+
+        return post_z, zmode, t_b, todds
 
     def _process_chunk(self, start, end, data, first):
         """
@@ -523,6 +539,8 @@ class BPZ_lite(CatEstimator):
         pdfs = np.zeros((ng, nz))
         zmode = np.zeros(ng)
         zmean = np.zeros(ng)
+        tb = np.zeros(ng)
+        todds = np.zeros(ng)
         flux_temps = self.flux_templates
         zgrid = self.zgrid
         # Loop over all ng galaxies!
@@ -530,15 +548,15 @@ class BPZ_lite(CatEstimator):
             mag_0 = test_data['mags'][i, m_0_col]
             flux = test_data['flux'][i]
             flux_err = test_data['flux_err'][i]
-            pdfs[i], zmode[i] = self._estimate_pdf(flux_temps,
-                                                   kernel, flux,
-                                                   flux_err, mag_0,
-                                                   zgrid)
+            pdfs[i], zmode[i], tb[i], todds[i] = self._estimate_pdf(flux_temps,
+                                                                    kernel, flux,
+                                                                    flux_err, mag_0,
+                                                                    zgrid)
             zmean[i] = (zgrid * pdfs[i]).sum() / pdfs[i].sum()
         # remove the keys added to the data file by BPZ
         test_data.pop('flux', None)
         test_data.pop('flux_err', None)
         test_data.pop('mags', None)
         qp_dstn = qp.Ensemble(qp.interp, data=dict(xvals=self.zgrid, yvals=pdfs))
-        qp_dstn.set_ancil(dict(zmode=zmode, zmean=zmean))
+        qp_dstn.set_ancil(dict(zmode=zmode, zmean=zmean, tb=tb, todds=todds))
         self._do_chunk_output(qp_dstn, start, end, first)
