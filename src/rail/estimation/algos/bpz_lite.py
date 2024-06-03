@@ -34,7 +34,6 @@ from rail.bpz.utils import RAIL_BPZ_DIR
 from rail.core.common_params import SHARED_PARAMS
 
 
-
 def nzfunc(z, z0, alpha, km, m, m0):  # pragma: no cover
     zm = z0 + (km * (m - m0))
     return np.power(z, alpha) * np.exp(-1. * np.power((z / zm), alpha))
@@ -71,7 +70,7 @@ class BPZliteInformer(CatInformer):
                           bands=SHARED_PARAMS,
                           err_bands=SHARED_PARAMS,
                           ref_band=SHARED_PARAMS,
-                          redshift_col=SHARED_PARAMS,   
+                          redshift_col=SHARED_PARAMS,
                           data_path=Param(str, "None",
                                           msg="data_path (str): file path to the "
                                           "SED, FILTER, and AB directories.  If left to "
@@ -259,7 +258,7 @@ class BPZliteEstimator(CatEstimator):
                           bands=SHARED_PARAMS,
                           ref_band=SHARED_PARAMS,
                           err_bands=SHARED_PARAMS,
-                          redshift_col=SHARED_PARAMS,   
+                          redshift_col=SHARED_PARAMS,
                           dz=Param(float, 0.01, msg="delta z in grid"),
                           unobserved_val=Param(float, -99.0, msg="value to be replaced with zero flux and given large errors for non-observed filters"),
                           data_path=Param(str, "None",
@@ -391,7 +390,7 @@ class BPZliteEstimator(CatEstimator):
         errs = self.config.err_bands
 
         fluxdict = {}
-        
+
         # Load the magnitudes
         zp_frac = e_mag2frac(np.array(self.config.zp_errors))
 
@@ -423,7 +422,6 @@ class BPZliteEstimator(CatEstimator):
             else:
                 data[bandname][obsmask] = -99.0
                 data[errname][obsmask] = 20.0
-
 
         # Only one set of mag errors
         mag_errs = np.array([data[er] for er in errs]).T
@@ -482,7 +480,7 @@ class BPZliteEstimator(CatEstimator):
         fluxdict['flux_err'] = flux_err
         m_0_col = self.config.bands.index(self.config.ref_band)
         fluxdict['mag0'] = mags[:, m_0_col]
-        
+
         return fluxdict
 
     def _estimate_pdf(self, flux_templates, kernel, flux, flux_err, mag_0, z):
