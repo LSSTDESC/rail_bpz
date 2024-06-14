@@ -1,0 +1,13 @@
+#This file is used by DESC_BPZ to figure out which data columns correspond to which filter
+#and whether to include additional error convoluation or offsets.  See BPZ documentation
+#for further details
+#Filter        columns  cal(AB or Vega,optional)  zp_error  zp_offset
+gHSC      HSCg_cmodel_dered, g_cmodel_magerr	AB			  0.01      0.0
+rHSC      HSCr_cmodel_dered, g_cmodel_magerr	AB			  0.01	    0.0
+iHSC      HSCi_cmodel_dered, i_cmodel_magerr	AB			  0.01	    0.0
+zHSC      HSCz_cmodel_dered, z_cmodel_magerr	AB			  0.01	    0.0
+yHSC      HSCy_cmodel_dered, y_cmodel_magerr	AB			  0.01	    0.0
+Z_S 	       specz_redshift
+#ID		id
+M_0		HSCi_cmodel_dered
+
