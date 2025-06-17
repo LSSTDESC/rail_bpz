@@ -284,7 +284,7 @@ class BPZliteEstimator(CatEstimator):
                           madau_flag=Param(str, "no",
                                            msg="set to 'yes' or 'no' to set whether to include intergalactic "
                                                "Madau reddening when constructing model fluxes"),
-                          no_prior=Param(bool, "False", msg="set to True if you want to run with no prior"),
+                          no_prior=Param(bool, False, msg="set to True if you want to run with no prior"),
                           p_min=Param(float, 0.005,
                                       msg="BPZ sets all values of "
                                       "the PDF that are below p_min*peak_value to 0.0, "
