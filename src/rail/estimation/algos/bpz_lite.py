@@ -22,7 +22,6 @@ Missing from full BPZ:
 import os
 import numpy as np
 import scipy.optimize as sciop
-import pandas as pd
 import scipy.integrate
 import glob
 import qp
@@ -211,6 +210,9 @@ class BPZliteInformer(CatInformer):
                 training_data = self.get_data("input")[self.config.hdf5_groupname]
             else:  # pragma: no cover
                 training_data = self.get_data("input")
+
+            # convert training data format to numpy dictionary
+            training_data = self._convert_table_table_format(training_data, out_fmt_str="numpyDict")
 
             ngal = len(training_data[self.config.ref_band])
 
@@ -415,12 +417,8 @@ class BPZliteEstimator(CatEstimator):
                 detmask = np.isnan(data[bandname])
             else:
                 detmask = np.isclose(data[bandname], self.config.nondetect_val)
-            if isinstance(data, pd.DataFrame):
-                data.loc[detmask, bandname] = 99.0
-                data.loc[detmask, errname] = self.config.mag_limits[bandname]
-            else:
-                data[bandname][detmask] = 99.0
-                data[errname][detmask] = self.config.mag_limits[bandname]
+            data[bandname][detmask] = 99.0
+            data[errname][detmask] = self.config.mag_limits[bandname]
 
         # replace non-observations with -99, again to match BPZ standard
         # below the fluxes for these will be set to zero but with enormous
@@ -430,12 +428,8 @@ class BPZliteEstimator(CatEstimator):
                 obsmask = np.isnan(data[bandname])
             else:
                 obsmask = np.isclose(data[bandname], self.config.unobserved_val)
-            if isinstance(data, pd.DataFrame):
-                data.loc[obsmask, bandname] = -99.0
-                data.loc[obsmask, errname] = 20.0
-            else:
-                data[bandname][obsmask] = -99.0
-                data[errname][obsmask] = 20.0
+            data[bandname][obsmask] = -99.0
+            data[errname][obsmask] = 20.0
 
         # Only one set of mag errors
         mag_errs = np.array([data[er] for er in errs]).T
@@ -559,6 +553,11 @@ class BPZliteEstimator(CatEstimator):
         Run BPZ on a chunk of data
         """
         # replace non-detects, traditional BPZ had nondet=99 and err = maglim
+        
+        # convert data format to numpy dictionary
+        if tables_io.types.table_type(data) != 1:
+            data = self._convert_table_table_format(data, "numpyDict")
+        
         # put in that format here
         test_data = self._preprocess_magnitudes(data)
         m_0_col = self.config.bands.index(self.config.ref_band)
