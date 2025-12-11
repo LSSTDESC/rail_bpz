@@ -20,8 +20,8 @@ fitsdata = "./tests/validation_10gal.fits"
 traindata = os.path.join(RAILDIR, "rail/examples_data/testdata/training_100gal.hdf5")
 validdata = os.path.join(RAILDIR, "rail/examples_data/testdata/validation_10gal.hdf5")
 
-DS = RailStage.data_store
-DS.__class__.allow_overwrite = True
+# DS = RailStage.data_store
+# DS.__class__.allow_overwrite = True
 
 
 @pytest.mark.parametrize(
@@ -51,8 +51,10 @@ def test_bpz_train(ntarray, inputdata, groupname, size):
     typedict = dict(types=broad_types)
     tables_io.write(typedict, "tmp_broad_types.hdf5")
     train_algo = bpz_lite.BPZliteInformer
-    DS.clear()
-    training_data = DS.read_file("training_data", TableHandle, inputdata)
+    # DS.clear()
+    # training_data = DS.read_file("training_data", TableHandle, inputdata)
+    training_data = TableHandle("training_data", path=inputdata)
+    training_data = training_data.read()
     train_stage = train_algo.make_stage(**train_config_dict)
     train_stage.inform(training_data)
     expected_keys = ["fo_arr", "kt_arr", "zo_arr", "km_arr", "a_arr", "mo", "nt_array"]
@@ -75,8 +77,10 @@ def test_output_hdfn_inform():
         "output_hdfn": True,
     }
     train_algo = bpz_lite.BPZliteInformer
-    DS.clear()
-    training_data = DS.read_file("training_data", TableHandle, traindata)
+    # DS.clear()
+    # training_data = DS.read_file("training_data", TableHandle, traindata)
+    training_data = TableHandle("training_data", path=traindata)
+    training_data = training_data.read()
     train_stage = train_algo.make_stage(**train_config_dict)
     train_stage.inform(training_data)
     expected_keys = ["fo_arr", "kt_arr", "zo_arr", "km_arr", "a_arr", "mo", "nt_array"]
@@ -154,11 +158,13 @@ def test_bpz_wHDFN_prior(inputdata, groupname):
     }
     zb_expected = np.array([0.18, 2.88, 0.14, 0.19, 2.91, 0.18, 0.21, 0.21, 2.98, 2.92])
 
-    validation_data = DS.read_file("validation_data", TableHandle, inputdata)
+    # validation_data = DS.read_file("validation_data", TableHandle, inputdata)
+    validation_data = TableHandle("validation_data", path=inputdata)
+    validation_data = validation_data.read()
     pz = bpz_lite.BPZliteEstimator.make_stage(name="bpz_hdfn", **estim_config_dict)
     results = pz.estimate(validation_data)
     assert np.isclose(results.data.ancil["zmode"], zb_expected, atol=0.05).all()
-    DS.clear()
+    # DS.clear()
     os.remove(pz.get_output(pz.get_aliased_tag("output"), final_name=True))
 
 
