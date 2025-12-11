@@ -66,6 +66,7 @@ class BPZliteInformer(CatInformer):
 
     name = "BPZliteInformer"
     entrypoint_function = "inform"  # the user-facing science function for this class
+    interactive_function = "bpz_lite_informer"
     config_options = CatInformer.config_options.copy()
     config_options.update(
         zmin=SHARED_PARAMS,
@@ -310,6 +311,7 @@ class BPZliteEstimator(CatEstimator):
 
     name = "BPZliteEstimator"
     entrypoint_function = "estimate"  # the user-facing science function for this class
+    interactive_function = "bpz_lite_estimator"
     config_options = CatEstimator.config_options.copy()
     config_options.update(
         zmin=SHARED_PARAMS,
