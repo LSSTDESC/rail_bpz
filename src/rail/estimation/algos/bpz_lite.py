@@ -274,8 +274,8 @@ class BPZliteEstimator(CatEstimator):
                           ref_band=SHARED_PARAMS,
                           err_bands=SHARED_PARAMS,
                           redshift_col=SHARED_PARAMS,
-                          dz=Param(float, 0.01, msg="delta z in grid"),
-                          unobserved_val=Param(float, -99.0, msg="value to be replaced with zero flux and given large errors for non-observed filters"),
+                          dz=SHARED_PARAMS,  # note: only used in optional kernel smoothing
+                          nonobserved_val=SHARED_PARAMS,
                           data_path=Param(str, "None",
                                           msg="data_path (str): file path to the "
                                           "SED, FILTER, and AB directories.  If left to "
@@ -425,10 +425,10 @@ class BPZliteEstimator(CatEstimator):
         # below the fluxes for these will be set to zero but with enormous
         # flux errors
         for bandname, errname in zip(bands, errs):
-            if np.isnan(self.config.unobserved_val):  # pragma: no cover
+            if np.isnan(self.config.nonobserved_val):  # pragma: no cover
                 obsmask = np.isnan(data[bandname])
             else:
-                obsmask = np.isclose(data[bandname], self.config.unobserved_val)
+                obsmask = np.isclose(data[bandname], self.config.nonobserved_val)
             data[bandname][obsmask] = -99.0
             data[errname][obsmask] = 20.0
 
@@ -456,7 +456,7 @@ class BPZliteEstimator(CatEstimator):
         seen = np.where(seen1)
         # unseen = np.where(~seen1)
         # replace Joe's definition with more standard BPZ style
-        nondetect = 99.
+        nondetect = 99.  # these are set to 99. above based on nondet_val
         nondetflux = 10.**(-0.4 * nondetect)
         unseen = np.isclose(flux, nondetflux, atol=nondetflux * 0.5)
 
@@ -479,7 +479,7 @@ class BPZliteEstimator(CatEstimator):
         # Convert non-observed objects to have zero flux
         # and enormous error, so that their likelihood will be
         # flat. This follows what's done in the bpz script.
-        nonobserved = -99.
+        nonobserved = -99.  # a mask sets this above based on nonobserved_val
         unobserved = np.isclose(mags, nonobserved)
         flux[unobserved] = 0.0
         flux_err[unobserved] = 1e108
