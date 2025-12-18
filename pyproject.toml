@@ -1,11 +1,9 @@
 [project]
 name = "pz-rail-bpz"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 readme = "README.md"
-authors = [
-    { name = "LSST DESC PZ WG", email = "samuel.j.schmidt@gmail.com" }
-]
+authors = [{ name = "LSST DESC PZ WG", email = "samuel.j.schmidt@gmail.com" }]
 classifiers = [
     "Development Status :: 4 - Beta",
     "License :: OSI Approved :: MIT License",
@@ -16,11 +14,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 
-dependencies = [
-    "desc-bpz",
-    "pz-rail-base>=1.1.4",
-    "qp-prob[full]",
-]
+dependencies = ["desc-bpz", "pz-rail-base>=2.0.0", "qp-prob[full]"]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
 [project.optional-dependencies]
@@ -28,12 +22,12 @@ dev = [
     "pytest",
     "pytest-cov", # Used to report total code coverage
     "pre-commit", # Used to run checks before finalizing a git commit
-    "pylint", # Used for static linting of files
+    "pylint",     # Used for static linting of files
 ]
 
 [build-system]
 requires = [
-    "setuptools>=62", # Used to build and package the Python project
+    "setuptools>=62",      # Used to build and package the Python project
     "wheel",
     "setuptools_scm>=6.2", # Gets release version from git. Makes it available programmatically
 ]
@@ -43,13 +37,8 @@ build-backend = "setuptools.build_meta"
 write_to = "src/rail/bpz/_version.py"
 
 [tool.pytest.ini_options]
-testpaths = [
-    "tests",
-]
-addopts = [
-    "--cov=rail",
-    "--cov-report=html"
-]
+testpaths = ["tests"]
+addopts = ["--cov=rail", "--cov-report=html"]
 
 [tool.pylint]
 disable = [
