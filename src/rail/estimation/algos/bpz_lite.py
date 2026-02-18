@@ -19,22 +19,23 @@ Missing from full BPZ:
 
 """
 
-import os
-import numpy as np
-import scipy.optimize as sciop
-import scipy.integrate
 import glob
+import os
+
+import numpy as np
 import qp
+import scipy.integrate
+import scipy.optimize as sciop
 import tables_io
 from ceci.config import StageParameter as Param
+from rail.core.common_params import SHARED_PARAMS
 from rail.estimation.estimator import CatEstimator, CatInformer
 from rail.utils.path_utils import RAILDIR
-from rail.core.common_params import SHARED_PARAMS
 
 
 def nzfunc(z, z0, alpha, km, m, m0):  # pragma: no cover
     zm = z0 + (km * (m - m0))
-    return np.power(z, alpha) * np.exp(-1. * np.power((z / zm), alpha))
+    return np.power(z, alpha) * np.exp(-1.0 * np.power((z / zm), alpha))
 
 
 class BPZliteInformer(CatInformer):
@@ -62,40 +63,64 @@ class BPZliteInformer(CatInformer):
     z0, km, and a for each type.  These parameters are then fed to the BPZ
     prior for use in the estimation stage.
     """
+
     name = "BPZliteInformer"
+    entrypoint_function = "inform"  # the user-facing science function for this class
+    interactive_function = "bpz_lite_informer"
     config_options = CatInformer.config_options.copy()
-    config_options.update(zmin=SHARED_PARAMS,
-                          zmax=SHARED_PARAMS,
-                          nzbins=SHARED_PARAMS,
-                          nondetect_val=SHARED_PARAMS,
-                          mag_limits=SHARED_PARAMS,
-                          bands=SHARED_PARAMS,
-                          err_bands=SHARED_PARAMS,
-                          ref_band=SHARED_PARAMS,
-                          redshift_col=SHARED_PARAMS,
-                          data_path=Param(str, "None",
-                                          msg="data_path (str): file path to the "
-                                          "SED, FILTER, and AB directories.  If left to "
-                                          "default `None` it will use the install "
-                                          "directory for rail + rail/examples_data/estimation_data/data"),
-                          spectra_file=Param(str, "CWWSB4.list",
-                                             msg="name of the file specifying the list of SEDs to use"),
-                          m0=Param(float, 20.0, msg="reference apparent mag, used in prior param"),
-                          nt_array=Param(list, [1, 2, 5], msg="list of integer number of templates per 'broad type', "
-                                         "must be in same order as the template set, and must sum to the same number "
-                                         "as the # of templates in the spectra file"),
-                          mmin=Param(float, 18.0, msg="lowest apparent mag in ref band, lower values ignored"),
-                          mmax=Param(float, 29.0, msg="highest apparent mag in ref band, higher values ignored"),
-                          init_kt=Param(float, 0.3, msg="initial guess for kt in training"),
-                          init_zo=Param(float, 0.4, msg="initial guess for z0 in training"),
-                          init_alpha=Param(float, 1.8, msg="initial guess for alpha in training"),
-                          init_km=Param(float, 0.1, msg="initial guess for km in training"),
-                          type_file=Param(str, "", msg="name of file with the broad type fits for the training data"),
-                          output_hdfn=Param(bool, True, msg="if True, just return the default HDFN prior params rather than fitting"))
+    config_options.update(
+        zmin=SHARED_PARAMS,
+        zmax=SHARED_PARAMS,
+        nzbins=SHARED_PARAMS,
+        nondetect_val=SHARED_PARAMS,
+        mag_limits=SHARED_PARAMS,
+        bands=SHARED_PARAMS,
+        err_bands=SHARED_PARAMS,
+        ref_band=SHARED_PARAMS,
+        redshift_col=SHARED_PARAMS,
+        data_path=Param(
+            str,
+            "None",
+            msg="data_path (str): file path to the "
+            "SED, FILTER, and AB directories.  If left to "
+            "default `None` it will use the install "
+            "directory for rail + rail/examples_data/estimation_data/data",
+        ),
+        spectra_file=Param(
+            str,
+            "CWWSB4.list",
+            msg="name of the file specifying the list of SEDs to use",
+        ),
+        m0=Param(float, 20.0, msg="reference apparent mag, used in prior param"),
+        nt_array=Param(
+            list,
+            [1, 2, 5],
+            msg="list of integer number of templates per 'broad type', "
+            "must be in same order as the template set, and must sum to the same number "
+            "as the # of templates in the spectra file",
+        ),
+        mmin=Param(
+            float, 18.0, msg="lowest apparent mag in ref band, lower values ignored"
+        ),
+        mmax=Param(
+            float, 29.0, msg="highest apparent mag in ref band, higher values ignored"
+        ),
+        init_kt=Param(float, 0.3, msg="initial guess for kt in training"),
+        init_zo=Param(float, 0.4, msg="initial guess for z0 in training"),
+        init_alpha=Param(float, 1.8, msg="initial guess for alpha in training"),
+        init_km=Param(float, 0.1, msg="initial guess for km in training"),
+        type_file=Param(
+            str, "", msg="name of file with the broad type fits for the training data"
+        ),
+        output_hdfn=Param(
+            bool,
+            True,
+            msg="if True, just return the default HDFN prior params rather than fitting",
+        ),
+    )
 
     def __init__(self, args, **kwargs):
-        """Init function, init config stuff
-        """
+        """Init function, init config stuff"""
         super().__init__(args, **kwargs)
         self.fo_arr = None
         self.kt_arr = None
@@ -109,17 +134,20 @@ class BPZliteInformer(CatInformer):
     def _frac_likelihood(self, frac_params):
         ngal = len(self.mags)
         probs = np.zeros([self.ntyp, ngal])
-        foarr = frac_params[:self.ntyp - 1]
-        ktarr = frac_params[self.ntyp - 1:]
+        foarr = frac_params[: self.ntyp - 1]
+        ktarr = frac_params[self.ntyp - 1 :]
         for i in range(self.ntyp - 1):
-            probs[i, :] = [foarr[i] * np.exp(-1. * ktarr[i] * (mag - self.m0)) for mag in self.mags]
+            probs[i, :] = [
+                foarr[i] * np.exp(-1.0 * ktarr[i] * (mag - self.m0))
+                for mag in self.mags
+            ]
         # set the probability of last element to 1 - sum of the others to
         # keep normalized, this is the way BPZ does things
-        probs[self.ntyp - 1, :] = 1. - np.sum(probs[:-1, :], axis=0)
+        probs[self.ntyp - 1, :] = 1.0 - np.sum(probs[:-1, :], axis=0)
         likelihood = 0.0
         for i, typ in enumerate(self.besttypes):
             if probs[typ, i] > 0.0:
-                likelihood += -2. * np.log10(probs[typ, i])
+                likelihood += -2.0 * np.log10(probs[typ, i])
         return likelihood
 
     def _find_fractions(self):
@@ -133,19 +161,21 @@ class BPZliteInformer(CatInformer):
         fracparams = np.hstack([fo_init, kt_init])
         # run scipy optimize to find best params
         # note that best fit vals are stored as "x" for some reason
-        frac_results = sciop.minimize(self._frac_likelihood, fracparams, method="nelder-mead").x
+        frac_results = sciop.minimize(
+            self._frac_likelihood, fracparams, method="nelder-mead"
+        ).x
         if self.ntyp == 1:
             self.fo_arr = np.array([frac_results[0]])
             self.kt_arr = np.array([frac_results[1]])
         else:
-            tmpfo = frac_results[:self.ntyp - 1]
+            tmpfo = frac_results[: self.ntyp - 1]
             # minimizer can sometimes give fractions greater than one, if so normalize
             fracnorm = np.sum(tmpfo)
-            if fracnorm > 1.:  # pragma: no cover
+            if fracnorm > 1.0:  # pragma: no cover
                 print("bad norm for f0, normalizing")
                 tmpfo /= fracnorm
             self.fo_arr = tmpfo
-            self.kt_arr = frac_results[self.ntyp - 1:]
+            self.kt_arr = frac_results[self.ntyp - 1 :]
 
     def _dndz_likelihood(self, params):
         mags = self.mags[self.typmask]
@@ -158,7 +188,7 @@ class BPZliteInformer(CatInformer):
         Inorm = zm ** (alpha + 1) * scipy.special.gamma(1 + 1 / alpha) / alpha
 
         # This is a vector of loglike per object
-        loglike = alpha * np.log(szs) - ((szs / zm)**alpha) - np.log(Inorm)
+        loglike = alpha * np.log(szs) - ((szs / zm) ** alpha) - np.log(Inorm)
 
         # We are minimizing not maximizing so return the negative
         mloglike = -(loglike.sum())
@@ -174,9 +204,13 @@ class BPZliteInformer(CatInformer):
         km_arr = np.ones(self.ntyp)
         for i in range(self.ntyp):
             print(f"minimizing for type {i}")
-            self.typmask = (self.besttypes == i)
-            dndzparams = np.hstack([self.config.init_zo, self.config.init_alpha, self.config.init_km])
-            result = sciop.minimize(self._dndz_likelihood, dndzparams, method="nelder-mead").x
+            self.typmask = self.besttypes == i
+            dndzparams = np.hstack(
+                [self.config.init_zo, self.config.init_alpha, self.config.init_km]
+            )
+            result = sciop.minimize(
+                self._dndz_likelihood, dndzparams, method="nelder-mead"
+            ).x
             zo_arr[i] = result[0]
             a_arr[i] = result[1]
             km_arr[i] = result[2]
@@ -193,8 +227,7 @@ class BPZliteInformer(CatInformer):
         return numtypes, typedata
 
     def run(self):
-        """compute the best fit prior parameters
-        """
+        """compute the best fit prior parameters"""
         if self.config.output_hdfn:
             # the parameters for the HDFN prior
             self.fo_arr = np.array([0.35, 0.5])
@@ -213,25 +246,31 @@ class BPZliteInformer(CatInformer):
 
             # convert training data format to numpy dictionary
             if tables_io.types.table_type(training_data) != 1:
-                training_data = self._convert_table_format(training_data, out_fmt_str="numpyDict")
+                training_data = self._convert_table_format(
+                    training_data, out_fmt_str="numpyDict"
+                )
 
             ngal = len(training_data[self.config.ref_band])
 
             if self.config.ref_band not in training_data.keys():  # pragma: no cover
-                raise KeyError(f"ref_band {self.config.ref_band} not found in input data!")
+                raise KeyError(
+                    f"ref_band {self.config.ref_band} not found in input data!"
+                )
             if self.config.redshift_col not in training_data.keys():  # pragma: no cover
-                raise KeyError(f"redshift column {self.config.redshift_col} not found in input data!")
+                raise KeyError(
+                    f"redshift column {self.config.redshift_col} not found in input data!"
+                )
 
             # cal function to get broad types
             Ntyp, broad_types = self._get_broad_type(ngal)
             self.ntyp = Ntyp
             # trim data to between mmin and mmax
             ref_mags = training_data[self.config.ref_band]
-            mask = ((ref_mags >= self.config.mmin) & (ref_mags <= self.config.mmax))
+            mask = (ref_mags >= self.config.mmin) & (ref_mags <= self.config.mmax)
             self.mags = ref_mags[mask]
             # To not screw up likelihood calculation, set objs with mag
             # brighter than m0 to value of m0
-            brightmask = (self.mags < self.m0)
+            brightmask = self.mags < self.m0
             self.mags[brightmask] = self.m0
             self.szs = training_data[self.config.redshift_col][mask]
             self.besttypes = broad_types[mask]
@@ -246,9 +285,15 @@ class BPZliteInformer(CatInformer):
             self.zo_arr, self.km_arr, self.a_arr = self._find_dndz_params()
             self.a_arr = np.abs(self.a_arr)
 
-        self.model = dict(fo_arr=self.fo_arr, kt_arr=self.kt_arr, zo_arr=self.zo_arr,
-                          km_arr=self.km_arr, a_arr=self.a_arr, mo=self.m0,
-                          nt_array=self.config.nt_array)
+        self.model = dict(
+            fo_arr=self.fo_arr,
+            kt_arr=self.kt_arr,
+            zo_arr=self.zo_arr,
+            km_arr=self.km_arr,
+            a_arr=self.a_arr,
+            mo=self.m0,
+            nt_array=self.config.nt_array,
+        )
         self.add_data("model", self.model)
 
 
@@ -263,66 +308,104 @@ class BPZliteEstimator(CatEstimator):
     so lower numbers mean other templates could be better fits, likely
     at other redshifts
     """
+
     name = "BPZliteEstimator"
+    entrypoint_function = "estimate"  # the user-facing science function for this class
+    interactive_function = "bpz_lite_estimator"
     config_options = CatEstimator.config_options.copy()
-    config_options.update(zmin=SHARED_PARAMS,
-                          zmax=SHARED_PARAMS,
-                          nzbins=SHARED_PARAMS,
-                          nondetect_val=SHARED_PARAMS,
-                          mag_limits=SHARED_PARAMS,
-                          bands=SHARED_PARAMS,
-                          ref_band=SHARED_PARAMS,
-                          err_bands=SHARED_PARAMS,
-                          redshift_col=SHARED_PARAMS,
-                          dz=Param(float, 0.01, msg="delta z in grid"),
-                          unobserved_val=Param(float, -99.0, msg="value to be replaced with zero flux and given large errors for non-observed filters"),
-                          data_path=Param(str, "None",
-                                          msg="data_path (str): file path to the "
-                                          "SED, FILTER, and AB directories.  If left to "
-                                          "default `None` it will use the install "
-                                          "directory for rail + ../examples_data/estimation_data/data"),
-                          filter_list=SHARED_PARAMS,
-                          spectra_file=Param(str, "CWWSB4.list",
-                                             msg="name of the file specifying the list of SEDs to use"),
-                          madau_flag=Param(str, "no",
-                                           msg="set to 'yes' or 'no' to set whether to include intergalactic "
-                                               "Madau reddening when constructing model fluxes"),
-                          no_prior=Param(bool, False, msg="set to True if you want to run with no prior"),
-                          p_min=Param(float, 0.005,
-                                      msg="BPZ sets all values of "
-                                      "the PDF that are below p_min*peak_value to 0.0, "
-                                      "p_min controls that fractional cutoff"),
-                          gauss_kernel=Param(float, 0.0,
-                                             msg="gauss_kernel (float): BPZ "
-                                             "convolves the PDF with a kernel if this is set "
-                                             "to a non-zero number"),
-                          zp_errors=SHARED_PARAMS,
-                          mag_err_min=Param(float, 0.005,
-                                            msg="a minimum floor for the magnitude errors to prevent a "
-                                            "large chi^2 for very very bright objects"))
+    config_options.update(
+        zmin=SHARED_PARAMS,
+        zmax=SHARED_PARAMS,
+        nzbins=SHARED_PARAMS,
+        nondetect_val=SHARED_PARAMS,
+        mag_limits=SHARED_PARAMS,
+        bands=SHARED_PARAMS,
+        ref_band=SHARED_PARAMS,
+        err_bands=SHARED_PARAMS,
+        redshift_col=SHARED_PARAMS,
+        dz=Param(float, 0.01, msg="delta z in grid"),
+        unobserved_val=Param(
+            float,
+            -99.0,
+            msg="value to be replaced with zero flux and given large errors for non-observed filters",
+        ),
+        data_path=Param(
+            str,
+            "None",
+            msg="data_path (str): file path to the "
+            "SED, FILTER, and AB directories.  If left to "
+            "default `None` it will use the install "
+            "directory for rail + ../examples_data/estimation_data/data",
+        ),
+        filter_list=SHARED_PARAMS,
+        spectra_file=Param(
+            str,
+            "CWWSB4.list",
+            msg="name of the file specifying the list of SEDs to use",
+        ),
+        madau_flag=Param(
+            str,
+            "no",
+            msg="set to 'yes' or 'no' to set whether to include intergalactic "
+            "Madau reddening when constructing model fluxes",
+        ),
+        no_prior=Param(bool, False, msg="set to True if you want to run with no prior"),
+        p_min=Param(
+            float,
+            0.005,
+            msg="BPZ sets all values of "
+            "the PDF that are below p_min*peak_value to 0.0, "
+            "p_min controls that fractional cutoff",
+        ),
+        gauss_kernel=Param(
+            float,
+            0.0,
+            msg="gauss_kernel (float): BPZ "
+            "convolves the PDF with a kernel if this is set "
+            "to a non-zero number",
+        ),
+        zp_errors=SHARED_PARAMS,
+        mag_err_min=Param(
+            float,
+            0.005,
+            msg="a minimum floor for the magnitude errors to prevent a "
+            "large chi^2 for very very bright objects",
+        ),
+    )
 
     def __init__(self, args, **kwargs):
-        """Constructor, build the CatEstimator, then do BPZ specific setup
-        """
+        """Constructor, build the CatEstimator, then do BPZ specific setup"""
         super().__init__(args, **kwargs)
 
         datapath = self.config["data_path"]
         if datapath is None or datapath == "None":
-            tmpdatapath = os.path.join(RAILDIR, "rail/examples_data/estimation_data/data")
+            tmpdatapath = os.path.join(
+                RAILDIR, "rail/examples_data/estimation_data/data"
+            )
             os.environ["BPZDATAPATH"] = tmpdatapath
             self.data_path = tmpdatapath
         else:  # pragma: no cover
             self.data_path = datapath
             os.environ["BPZDATAPATH"] = self.data_path
         if not os.path.exists(self.data_path):  # pragma: no cover
-            raise FileNotFoundError("BPZDATAPATH " + self.data_path + " does not exist! Check value of data_path in config file!")
+            raise FileNotFoundError(
+                "BPZDATAPATH "
+                + self.data_path
+                + " does not exist! Check value of data_path in config file!"
+            )
 
         # check on bands, errs, and prior band
         if len(self.config.bands) != len(self.config.err_bands):  # pragma: no cover
-            raise ValueError("Number of bands specified in bands must be equal to number of mag errors specified in err_bands!")
+            raise ValueError(
+                "Number of bands specified in bands must be equal to number of mag errors specified in err_bands!"
+            )
         if self.config.ref_band not in self.config.bands:  # pragma: no cover
-            raise ValueError(f"reference band not found in bands specified in bands: {str(self.config.bands)}")
-        if len(self.config.bands) != len(self.config.err_bands) or len(self.config.bands) != len(self.config.filter_list):
+            raise ValueError(
+                f"reference band not found in bands specified in bands: {str(self.config.bands)}"
+            )
+        if len(self.config.bands) != len(self.config.err_bands) or len(
+            self.config.bands
+        ) != len(self.config.filter_list):
             raise ValueError(
                 f"length of bands {len(self.config.bands)}), "
                 f"err_bands, {len(self.config.err_bands)} and "
@@ -358,7 +441,7 @@ class BPZliteEstimator(CatEstimator):
         self.modeldict = self.model
 
     def _load_templates(self):
-        from desc_bpz.useful_py3 import get_str, get_data, match_resol
+        from desc_bpz.useful_py3 import get_data, get_str, match_resol
 
         # The redshift range we will evaluate on
         self.zgrid = np.linspace(self.config.zmin, self.config.zmax, self.config.nzbins)
@@ -445,8 +528,8 @@ class BPZliteEstimator(CatEstimator):
         np.clip(mag_errs, self.config.mag_err_min, 20, mag_errs)
 
         # Convert to pseudo-fluxes
-        flux = 10.0**(-0.4 * mags)
-        flux_err = flux * (10.0**(0.4 * mag_errs) - 1.0)
+        flux = 10.0 ** (-0.4 * mags)
+        flux_err = flux * (10.0 ** (0.4 * mag_errs) - 1.0)
 
         # Check if an object is seen in each band at all.
         # Fluxes not seen at all are listed as infinity in the input,
@@ -456,39 +539,39 @@ class BPZliteEstimator(CatEstimator):
         seen = np.where(seen1)
         # unseen = np.where(~seen1)
         # replace Joe's definition with more standard BPZ style
-        nondetect = 99.
-        nondetflux = 10.**(-0.4 * nondetect)
+        nondetect = 99.0
+        nondetflux = 10.0 ** (-0.4 * nondetect)
         unseen = np.isclose(flux, nondetflux, atol=nondetflux * 0.5)
 
         # replace mag = 99 values with 0 flux and 1 sigma limiting magnitude
         # value, which is stored in the mag_errs column for non-detects
         # NOTE: We should check that this same convention will be used in
         # LSST, or change how we handle non-detects here!
-        flux[unseen] = 0.
-        flux_err[unseen] = 10.**(-0.4 * np.abs(mag_errs[unseen]))
+        flux[unseen] = 0.0
+        flux_err[unseen] = 10.0 ** (-0.4 * np.abs(mag_errs[unseen]))
 
         # Add zero point magnitude errors.
         # In the case that the object is detected, this
         # correction depends onthe flux.  If it is not detected
         # then BPZ uses half the errors instead
         add_err = np.zeros_like(flux_err)
-        add_err[seen] = ((zp_frac * flux)**2)[seen]
-        add_err[unseen] = ((zp_frac * 0.5 * flux_err)**2)[unseen]
+        add_err[seen] = ((zp_frac * flux) ** 2)[seen]
+        add_err[unseen] = ((zp_frac * 0.5 * flux_err) ** 2)[unseen]
         flux_err = np.sqrt(flux_err**2 + add_err)
 
         # Convert non-observed objects to have zero flux
         # and enormous error, so that their likelihood will be
         # flat. This follows what's done in the bpz script.
-        nonobserved = -99.
+        nonobserved = -99.0
         unobserved = np.isclose(mags, nonobserved)
         flux[unobserved] = 0.0
         flux_err[unobserved] = 1e108
 
         # Upate the flux dictionary with new things we have calculated
-        fluxdict['flux'] = flux
-        fluxdict['flux_err'] = flux_err
+        fluxdict["flux"] = flux
+        fluxdict["flux_err"] = flux_err
         m_0_col = self.config.bands.index(self.config.ref_band)
-        fluxdict['mag0'] = mags[:, m_0_col]
+        fluxdict["mag0"] = mags[:, m_0_col]
 
         return fluxdict
 
@@ -554,24 +637,27 @@ class BPZliteEstimator(CatEstimator):
         Run BPZ on a chunk of data
         """
         # replace non-detects, traditional BPZ had nondet=99 and err = maglim
-        
+
         # convert data format to numpy dictionary
         if tables_io.types.table_type(data) != 1:
             data = self._convert_table_format(data, "numpyDict")
-        
+
         # put in that format here
         test_data = self._preprocess_magnitudes(data)
         m_0_col = self.config.bands.index(self.config.ref_band)
 
         nz = len(self.zgrid)
-        ng = test_data['flux'].shape[0]
+        ng = test_data["flux"].shape[0]
 
         # Set up Gauss kernel for extra smoothing, if needed
         if self.config.gauss_kernel > 0:  # pragma: no cover
             dz = self.config.dz
-            x = np.arange(-3. * self.config.gauss_kernel,
-                          3. * self.config.gauss_kernel + dz / 10., dz)
-            kernel = np.exp(-(x / self.config.gauss_kernel)**2)
+            x = np.arange(
+                -3.0 * self.config.gauss_kernel,
+                3.0 * self.config.gauss_kernel + dz / 10.0,
+                dz,
+            )
+            kernel = np.exp(-((x / self.config.gauss_kernel) ** 2))
         else:
             kernel = None
 
@@ -584,13 +670,12 @@ class BPZliteEstimator(CatEstimator):
         zgrid = self.zgrid
         # Loop over all ng galaxies!
         for i in range(ng):
-            mag_0 = test_data['mag0'][i]
-            flux = test_data['flux'][i]
-            flux_err = test_data['flux_err'][i]
-            pdfs[i], zmode[i], tb[i], todds[i] = self._estimate_pdf(flux_temps,
-                                                                    kernel, flux,
-                                                                    flux_err, mag_0,
-                                                                    zgrid)
+            mag_0 = test_data["mag0"][i]
+            flux = test_data["flux"][i]
+            flux_err = test_data["flux_err"][i]
+            pdfs[i], zmode[i], tb[i], todds[i] = self._estimate_pdf(
+                flux_temps, kernel, flux, flux_err, mag_0, zgrid
+            )
             zmean[i] = (zgrid * pdfs[i]).sum() / pdfs[i].sum()
         qp_dstn = qp.Ensemble(qp.interp, data=dict(xvals=self.zgrid, yvals=pdfs))
         qp_dstn.set_ancil(dict(zmode=zmode, zmean=zmean, tb=tb, todds=todds))
