@@ -78,10 +78,10 @@ class BPZliteInformer(CatInformer):
         err_bands=SHARED_PARAMS,
         ref_band=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
-        data_path=Param(
+        bpz_ref_data_path=Param(
             str,
             "None",
-            msg="data_path (str): file path to the "
+            msg="bpz_ref_data_path (str): file path to the "
             "SED, FILTER, and AB directories.  If left to "
             "default `None` it will use the install "
             "directory for rail + rail/examples_data/estimation_data/data",
@@ -329,10 +329,10 @@ class BPZliteEstimator(CatEstimator):
             -99.0,
             msg="value to be replaced with zero flux and given large errors for non-observed filters",
         ),
-        data_path=Param(
+        bpz_ref_data_path=Param(
             str,
             "None",
-            msg="data_path (str): file path to the "
+            msg="bpz_ref_data_path (str): file path to the "
             "SED, FILTER, and AB directories.  If left to "
             "default `None` it will use the install "
             "directory for rail + ../examples_data/estimation_data/data",
@@ -377,21 +377,21 @@ class BPZliteEstimator(CatEstimator):
         """Constructor, build the CatEstimator, then do BPZ specific setup"""
         super().__init__(args, **kwargs)
 
-        datapath = self.config["data_path"]
+        datapath = self.config["bpz_ref_data_path"]
         if datapath is None or datapath == "None":
             tmpdatapath = os.path.join(
                 RAILDIR, "rail/examples_data/estimation_data/data"
             )
             os.environ["BPZDATAPATH"] = tmpdatapath
-            self.data_path = tmpdatapath
+            self.bpz_ref_data_path = tmpdatapath
         else:  # pragma: no cover
-            self.data_path = datapath
-            os.environ["BPZDATAPATH"] = self.data_path
-        if not os.path.exists(self.data_path):  # pragma: no cover
+            self.bpz_ref_data_path = datapath
+            os.environ["BPZDATAPATH"] = self.bpz_ref_data_path
+        if not os.path.exists(self.bpz_ref_data_path):  # pragma: no cover
             raise FileNotFoundError(
                 "BPZDATAPATH "
-                + self.data_path
-                + " does not exist! Check value of data_path in config file!"
+                + self.bpz_ref_data_path
+                + " does not exist! Check value of bpz_ref_data_path in config file!"
             )
 
         # check on bands, errs, and prior band
@@ -447,10 +447,10 @@ class BPZliteEstimator(CatEstimator):
         self.zgrid = np.linspace(self.config.zmin, self.config.zmax, self.config.nzbins)
         z = self.zgrid
 
-        data_path = self.data_path
+        bpz_ref_data_path = self.bpz_ref_data_path
         filters = self.config.filter_list
 
-        spectra_file = os.path.join(data_path, "SED", self.config.spectra_file)
+        spectra_file = os.path.join(bpz_ref_data_path, "SED", self.config.spectra_file)
         spectra = [s[:-4] for s in get_str(spectra_file)]
 
         nt = len(spectra)
@@ -458,7 +458,7 @@ class BPZliteEstimator(CatEstimator):
         nz = len(z)
         flux_templates = np.zeros((nz, nt, nf))
 
-        ab_dir = os.path.join(data_path, "AB")
+        ab_dir = os.path.join(bpz_ref_data_path, "AB")
         os.makedirs(ab_dir, exist_ok=True)
 
         # make a list of all available AB files in the AB directory
@@ -470,7 +470,7 @@ class BPZliteEstimator(CatEstimator):
                 model = f"{s}.{f}.AB"
                 if model not in ab_file_db:  # pragma: no cover
                     self._make_new_ab_file(s, f)
-                model_path = os.path.join(data_path, "AB", model)
+                model_path = os.path.join(bpz_ref_data_path, "AB", model)
                 zo, f_mod_0 = get_data(model_path, (0, 1))
                 flux_templates[:, i, j] = match_resol(zo, f_mod_0, z)
 
