@@ -97,7 +97,7 @@ def test_bpz_lite():
         "zmax": 3.0,
         "dz": 0.01,
         "nzbins": 301,
-        "data_path": None,
+        "bpz_ref_data_path": None,
         "columns_file": os.path.join(
             RAIL_BPZ_DIR, "rail/examples_data/estimation_data/configs/test_bpz.columns"
         ),
@@ -138,7 +138,7 @@ def test_bpz_wHDFN_prior(inputdata, groupname):
         "zmax": 3.0,
         "dz": 0.01,
         "nzbins": 301,
-        "data_path": None,
+        "bpz_ref_data_path": None,
         "columns_file": os.path.join(
             RAIL_BPZ_DIR, "rail/examples_data/estimation_data/configs/test_bpz.columns"
         ),
@@ -175,7 +175,7 @@ def test_wrong_number_of_filters():
         "zmax": 3.0,
         "dz": 0.01,
         "nzbins": 301,
-        "data_path": None,
+        "bpz_ref_data_path": None,
         "columns_file": os.path.join(
             RAIL_BPZ_DIR, "rail/examples_data/estimation_data/configs/test_bpz.columns"
         ),
