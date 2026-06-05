@@ -67,7 +67,6 @@ def test_bpz_train(ntarray, inputdata, groupname, size):
         priormodel = tmpmodel['priormodel']
     for key in expected_keys:
         assert key in priormodel.keys()
-    os.remove("tmp_broad_types.hdf5")
 
 
 def test_output_hdfn_inform():
@@ -94,6 +93,7 @@ def test_output_hdfn_inform():
         priormodel = tmpmodel['priormodel']
     for key in expected_keys:
         assert key in priormodel.keys()
+    os.remove("tmp_broad_types.hdf5")
 
 
 def test_bpz_lite():
