@@ -39,7 +39,7 @@ class BPZlitePreEstimator(CatEstimator):
     """
 
     name = "BPZlitePreEstimator"
-    entrypoint_function = "preestimate"  # the user-facing science function for this class
+    entrypoint_function = "estimate"  # the user-facing science function for this class
     interactive_function = "bpz_lite_preestimator"
     config_options = CatEstimator.config_options.copy()
     config_options.update(

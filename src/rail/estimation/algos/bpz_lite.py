@@ -120,6 +120,17 @@ class BPZliteInformer(CatInformer):
             True,
             msg="if True, just return the default HDFN prior params rather than fitting",
         ),
+        override_file_offsets=Param(
+            bool,
+            False,
+            msg="if False, will use zeropoint offsets from pkl file, "
+            "if True, will instead use values in zp_offsets param"
+        ),
+        zp_offsets=Param(
+            list,
+            default_offset_array,
+            msg="zero point offsets calculated from preInformer stage"
+        ),
     )
 
     def __init__(self, args, **kwargs):
@@ -234,6 +245,17 @@ class BPZliteInformer(CatInformer):
 
     def run(self):
         """compute the best fit prior parameters"""
+        if self.config.hdf5_groupname:
+            training_data = self.get_data("input")[self.config.hdf5_groupname]
+        else:  # pragma: no cover
+            training_data = self.get_data("input")
+
+        # convert training data format to numpy dictionary
+        if tables_io.types.table_type(training_data) != 1:
+            training_data = self._convert_table_format(
+                training_data, out_fmt_str="numpyDict"
+            )
+        ngal = len(training_data[self.config.ref_band])
         if self.config.output_hdfn:
             # the parameters for the HDFN prior
             self.fo_arr = np.array([0.35, 0.5])
@@ -243,21 +265,11 @@ class BPZliteInformer(CatInformer):
             self.a_arr = np.array([2.465, 1.806, 0.906])
             self.m0 = 20.0
             self.nt_array = self.config.nt_array
-            zeropoints = np.zeros(len(self.config.bands))
+            if not self.config.override_file_offsets:
+                _, _, zeropoints = self._get_broad_type(ngal)
+            else: zeropoints = np.zeros(len(self.config.bands))
         else:
             self.m0 = self.config.m0
-            if self.config.hdf5_groupname:
-                training_data = self.get_data("input")[self.config.hdf5_groupname]
-            else:  # pragma: no cover
-                training_data = self.get_data("input")
-
-            # convert training data format to numpy dictionary
-            if tables_io.types.table_type(training_data) != 1:
-                training_data = self._convert_table_format(
-                    training_data, out_fmt_str="numpyDict"
-                )
-
-            ngal = len(training_data[self.config.ref_band])
 
             if self.config.ref_band not in training_data.keys():  # pragma: no cover
                 raise KeyError(
