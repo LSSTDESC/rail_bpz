@@ -265,9 +265,10 @@ class BPZliteInformer(CatInformer):
             self.a_arr = np.array([2.465, 1.806, 0.906])
             self.m0 = 20.0
             self.nt_array = self.config.nt_array
-            if not self.config.override_file_offsets:
+            if self.config.override_file_offsets:  # pragma: no cover
+                zeropoints =  np.zeros(len(self.config.bands))
+            else: 
                 _, _, zeropoints = self._get_broad_type(ngal)
-            else: zeropoints = np.zeros(len(self.config.bands))
         else:
             self.m0 = self.config.m0
 
