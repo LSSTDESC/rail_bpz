@@ -33,6 +33,9 @@ from rail.estimation.estimator import CatEstimator, CatInformer
 from rail.utils.path_utils import RAILDIR
 
 
+default_offset_array = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+
 def nzfunc(z, z0, alpha, km, m, m0):  # pragma: no cover
     zm = z0 + (km * (m - m0))
     return np.power(z, alpha) * np.exp(-1.0 * np.power((z / zm), alpha))
@@ -117,6 +120,17 @@ class BPZliteInformer(CatInformer):
             True,
             msg="if True, just return the default HDFN prior params rather than fitting",
         ),
+        override_file_offsets=Param(
+            bool,
+            False,
+            msg="if False, will use zeropoint offsets from pkl file, "
+            "if True, will instead use values in zp_offsets param"
+        ),
+        zp_offsets=Param(
+            list,
+            default_offset_array,
+            msg="zero point offsets calculated from preInformer stage"
+        ),
     )
 
     def __init__(self, args, **kwargs):
@@ -135,7 +149,7 @@ class BPZliteInformer(CatInformer):
         ngal = len(self.mags)
         probs = np.zeros([self.ntyp, ngal])
         foarr = frac_params[: self.ntyp - 1]
-        ktarr = frac_params[self.ntyp - 1 :]
+        ktarr = np.fabs(frac_params[self.ntyp - 1 :])
         for i in range(self.ntyp - 1):
             probs[i, :] = [
                 foarr[i] * np.exp(-1.0 * ktarr[i] * (mag - self.m0))
@@ -175,7 +189,7 @@ class BPZliteInformer(CatInformer):
                 print("bad norm for f0, normalizing")
                 tmpfo /= fracnorm
             self.fo_arr = tmpfo
-            self.kt_arr = frac_results[self.ntyp - 1 :]
+            self.kt_arr = np.fabs(frac_results[self.ntyp - 1 :])
 
     def _dndz_likelihood(self, params):
         mags = self.mags[self.typmask]
@@ -221,13 +235,27 @@ class BPZliteInformer(CatInformer):
         typefile = self.config.type_file
         if typefile == "":  # pragma: no cover
             typedata = np.zeros(ngal, dtype=int)
-        else:
-            typedata = tables_io.read(typefile)["types"]  # pragma: no cover
+            zeropoints = np.zeros(len(self.config.bands))
+        else:  # pragma: no cover
+            tdata = tables_io.read(typefile)
+            typedata = tdata["types"]["broad_type"]  # pragma: no cover
+            zeropoints = tdata["offsets"]["zp_offsets"]
         numtypes = len(list(set(typedata)))
-        return numtypes, typedata
+        return numtypes, typedata, zeropoints
 
     def run(self):
         """compute the best fit prior parameters"""
+        if self.config.hdf5_groupname:
+            training_data = self.get_data("input")[self.config.hdf5_groupname]
+        else:  # pragma: no cover
+            training_data = self.get_data("input")
+
+        # convert training data format to numpy dictionary
+        if tables_io.types.table_type(training_data) != 1:
+            training_data = self._convert_table_format(
+                training_data, out_fmt_str="numpyDict"
+            )
+        ngal = len(training_data[self.config.ref_band])
         if self.config.output_hdfn:
             # the parameters for the HDFN prior
             self.fo_arr = np.array([0.35, 0.5])
@@ -237,20 +265,12 @@ class BPZliteInformer(CatInformer):
             self.a_arr = np.array([2.465, 1.806, 0.906])
             self.m0 = 20.0
             self.nt_array = self.config.nt_array
+            if self.config.override_file_offsets:  # pragma: no cover
+                zeropoints =  np.zeros(len(self.config.bands))
+            else: 
+                _, _, zeropoints = self._get_broad_type(ngal)
         else:
             self.m0 = self.config.m0
-            if self.config.hdf5_groupname:
-                training_data = self.get_data("input")[self.config.hdf5_groupname]
-            else:  # pragma: no cover
-                training_data = self.get_data("input")
-
-            # convert training data format to numpy dictionary
-            if tables_io.types.table_type(training_data) != 1:
-                training_data = self._convert_table_format(
-                    training_data, out_fmt_str="numpyDict"
-                )
-
-            ngal = len(training_data[self.config.ref_band])
 
             if self.config.ref_band not in training_data.keys():  # pragma: no cover
                 raise KeyError(
@@ -262,7 +282,7 @@ class BPZliteInformer(CatInformer):
                 )
 
             # cal function to get broad types
-            Ntyp, broad_types = self._get_broad_type(ngal)
+            Ntyp, broad_types, zeropoints = self._get_broad_type(ngal)
             self.ntyp = Ntyp
             # trim data to between mmin and mmax
             ref_mags = training_data[self.config.ref_band]
@@ -286,13 +306,18 @@ class BPZliteInformer(CatInformer):
             self.a_arr = np.abs(self.a_arr)
 
         self.model = dict(
-            fo_arr=self.fo_arr,
-            kt_arr=self.kt_arr,
-            zo_arr=self.zo_arr,
-            km_arr=self.km_arr,
-            a_arr=self.a_arr,
-            mo=self.m0,
-            nt_array=self.config.nt_array,
+            priormodel=dict(
+                fo_arr=self.fo_arr,
+                kt_arr=self.kt_arr,
+                zo_arr=self.zo_arr,
+                km_arr=self.km_arr,
+                a_arr=self.a_arr,
+                mo=self.m0,
+                nt_array=self.config.nt_array,
+            ),
+            zp_offsets=dict(
+                offsets=zeropoints
+            ),
         )
         self.add_data("model", self.model)
 
@@ -371,6 +396,17 @@ class BPZliteEstimator(CatEstimator):
             msg="a minimum floor for the magnitude errors to prevent a "
             "large chi^2 for very very bright objects",
         ),
+        override_file_offsets=Param(
+            bool,
+            False,
+            msg="if False, will use zeropoint offsets from pkl file, "
+            "if True, will instead use values in zp_offsets param"
+        ),
+        zp_offsets=Param(
+            list,
+            default_offset_array,
+            msg="zero point offsets calculated from preInformer stage"
+        ),
     )
 
     def __init__(self, args, **kwargs):
@@ -411,6 +447,7 @@ class BPZliteEstimator(CatEstimator):
                 f"err_bands, {len(self.config.err_bands)} and "
                 f"filter_list {len(self.config.filter_list)} are not the same!"
             )
+        self.config.zp_offsets = np.array(self.config.zp_offsets)
 
     def _initialize_run(self):
         super()._initialize_run()
@@ -437,8 +474,10 @@ class BPZliteEstimator(CatEstimator):
                 self.comm.Barrier()
 
     def open_model(self, **kwargs):
-        CatEstimator.open_model(self, **kwargs)
-        self.modeldict = self.model
+        self.model = CatEstimator.open_model(self, **kwargs)
+        catmodeldict = self.model
+        self.modeldict = catmodeldict["priormodel"]
+        self.zp_off_from_file = catmodeldict["zp_offsets"]["offsets"]
 
     def _load_templates(self):
         from desc_bpz.useful_py3 import get_data, get_str, match_resol
@@ -496,11 +535,19 @@ class BPZliteEstimator(CatEstimator):
 
         # replace non-detects with 99 and mag_err with lim_mag for consistency
         # with typical BPZ performance
-        for bandname, errname in zip(bands, errs):
+        for ii, (bandname, errname) in enumerate(zip(bands, errs)):
+            # Need to apply zero point offsets after detection mask!
+            # Was here, move to after mask determination
             if np.isnan(self.config.nondetect_val):  # pragma: no cover
                 detmask = np.isnan(data[bandname])
             else:
                 detmask = np.isclose(data[bandname], self.config.nondetect_val)
+            # Subtract off the zero point offsets
+            if self.config.override_file_offsets:
+                zpoff = self.config.zp_offsets
+            else:
+                zpoff = self.zp_off_from_file
+            data[bandname] -= zpoff[ii]
             data[bandname][detmask] = 99.0
             data[errname][detmask] = self.config.mag_limits[bandname]
 
@@ -565,7 +612,7 @@ class BPZliteEstimator(CatEstimator):
         nonobserved = -99.0
         unobserved = np.isclose(mags, nonobserved)
         flux[unobserved] = 0.0
-        flux_err[unobserved] = 1e108
+        flux_err[unobserved] = 1e28
 
         # Upate the flux dictionary with new things we have calculated
         fluxdict["flux"] = flux
@@ -644,7 +691,7 @@ class BPZliteEstimator(CatEstimator):
 
         # put in that format here
         test_data = self._preprocess_magnitudes(data)
-        m_0_col = self.config.bands.index(self.config.ref_band)
+        # m_0_col = self.config.bands.index(self.config.ref_band)
 
         nz = len(self.zgrid)
         ng = test_data["flux"].shape[0]

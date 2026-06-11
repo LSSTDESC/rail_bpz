@@ -5,13 +5,14 @@ import numpy as np
 import pytest
 import scipy.special
 import tables_io
-from rail.core.data import DataStore, TableHandle
-from rail.core.stage import RailStage
+from rail.core.data import TableHandle
 from rail.utils.path_utils import RAILDIR
 from rail.utils.testing_utils import one_algo
 
 from rail.bpz.utils import RAIL_BPZ_DIR
 from rail.estimation.algos import bpz_lite
+from rail.estimation.algos.bpz_preprocess import BPZlitePreEstimator
+
 
 sci_ver_str = scipy.__version__.split(".")
 
@@ -44,12 +45,15 @@ def test_bpz_train(ntarray, inputdata, groupname, size):
         "model": "testmodel_bpz.pkl",
         "output_hdfn": False,
     }
+    fakeoffsets = np.zeros(6)
+    offsets = dict(zp_offsets=fakeoffsets)
     if len(ntarray) == 2:
         broad_types = np.random.randint(2, size=size)
     else:
         broad_types = np.zeros(size, dtype=int)
-    typedict = dict(types=broad_types)
-    tables_io.write(typedict, "tmp_broad_types.hdf5")
+    broaddict = dict(broad_type=broad_types)
+    outerdict = dict(offsets=offsets, types=broaddict)
+    tables_io.write(outerdict, "tmp_broad_types.hdf5")
     train_algo = bpz_lite.BPZliteInformer
     # DS.clear()
     # training_data = DS.read_file("training_data", TableHandle, inputdata)
@@ -60,9 +64,9 @@ def test_bpz_train(ntarray, inputdata, groupname, size):
     expected_keys = ["fo_arr", "kt_arr", "zo_arr", "km_arr", "a_arr", "mo", "nt_array"]
     with open("testmodel_bpz.pkl", "rb") as f:
         tmpmodel = pickle.load(f)
+        priormodel = tmpmodel['priormodel']
     for key in expected_keys:
-        assert key in tmpmodel.keys()
-    os.remove("tmp_broad_types.hdf5")
+        assert key in priormodel.keys()
 
 
 def test_output_hdfn_inform():
@@ -86,8 +90,10 @@ def test_output_hdfn_inform():
     expected_keys = ["fo_arr", "kt_arr", "zo_arr", "km_arr", "a_arr", "mo", "nt_array"]
     with open("testmodel_bpz.pkl", "rb") as f:
         tmpmodel = pickle.load(f)
+        priormodel = tmpmodel['priormodel']
     for key in expected_keys:
-        assert key in tmpmodel.keys()
+        assert key in priormodel.keys()
+    os.remove("tmp_broad_types.hdf5")
 
 
 def test_bpz_lite():
@@ -114,7 +120,7 @@ def test_bpz_lite():
         "nt_array": [8],
         "model": "testmodel_bpz.pkl",
     }
-    zb_expected = np.array([0.16, 0.12, 0.0, 0.12, 0.05, 0.14, 0.11, 0.14, 0.05, 0.16])
+    # zb_expected = np.array([0.16, 0.12, 0.0, 0.12, 0.05, 0.14, 0.11, 0.14, 0.05, 0.16])
     train_algo = None
     pz_algo = bpz_lite.BPZliteEstimator
     results, rerun_results, rerun3_results = one_algo(
@@ -168,6 +174,44 @@ def test_bpz_wHDFN_prior(inputdata, groupname):
     os.remove(pz.get_output(pz.get_aliased_tag("output"), final_name=True))
 
 
+def test_bpz_zeropt_override():
+    estim_config_dict = {
+        "zmin": 0.0,
+        "zmax": 3.0,
+        "dz": 0.01,
+        "nzbins": 301,
+        "bpz_ref_data_path": None,
+        "columns_file": os.path.join(
+            RAIL_BPZ_DIR, "rail/examples_data/estimation_data/configs/test_bpz.columns"
+        ),
+        "spectra_file": "CWWSB4.list",
+        "madau_flag": "no",
+        "ref_band": "mag_i_lsst",
+        "prior_file": "flat",
+        "p_min": 0.005,
+        "gauss_kernel": 0.1,
+        "zp_errors": np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01]),
+        "mag_err_min": 0.005,
+        "hdf5_groupname": "photometry",
+        "nt_array": [1, 2, 5],
+        "model": os.path.join(
+            RAILDIR, "rail/examples_data/estimation_data/data/CWW_HDFN_prior.pkl"
+        ),
+        "override_file_offsets": True,
+        "zp_offsets": np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    }
+    zb_expected = np.array([0.18, 2.88, 0.14, 0.19, 2.91, 0.18, 0.21, 0.21, 2.98, 2.92])
+
+    # validation_data = DS.read_file("validation_data", TableHandle, inputdata)
+    validation_data = TableHandle("validation_data", path=validdata)
+    validation_data = validation_data.read()
+    pz = bpz_lite.BPZliteEstimator.make_stage(name="bpz_hdfn", **estim_config_dict)
+    results = pz.estimate(validation_data)
+    assert np.isclose(results.data.ancil["zmode"], zb_expected, atol=0.05).all()
+    # DS.clear()
+    os.remove(pz.get_output(pz.get_aliased_tag("output"), final_name=True))
+
+
 def test_wrong_number_of_filters():
     train_config_dict = {}
     estim_config_dict = {
@@ -196,3 +240,52 @@ def test_wrong_number_of_filters():
         _, _, _ = one_algo(
             "BPZ_lite", train_algo, pz_algo, train_config_dict, estim_config_dict
         )
+
+
+def test_bpz_preestimation():
+    zp_off = np.zeros(6)
+    pre_est_dict = dict(zp_offsets=zp_off, only_type=False, output="test_preestimation.hdf5")
+    train_data = tables_io.read(traindata)
+
+    prestage = BPZlitePreEstimator.make_stage(name="test", **pre_est_dict)
+    pre_results = prestage.estimate(train_data)
+
+    newoff = pre_results()['offsets']['zp_offsets']
+    newtypes = pre_results()['types']['broad_type']
+    assert len(newtypes) == 100
+    assert len(newoff) == 6
+    os.remove("test_preestimation.hdf5")
+
+
+def test_bpz_preestimation_onlytype():
+    zp_off = np.zeros(6)
+    pre_est_dict = dict(zp_offsets=zp_off, only_type=True, output="test_preestimation_otype.hdf5")
+    train_data = tables_io.read(traindata)
+
+    prestage = BPZlitePreEstimator.make_stage(name="test", **pre_est_dict)
+    pre_results = prestage.estimate(train_data)
+
+    newoff = pre_results()['offsets']['zp_offsets']
+    newtypes = pre_results()['types']['broad_type']
+    assert len(newoff) == 6
+    assert len(newtypes) == 100
+
+    os.remove("test_preestimation_otype.hdf5")
+
+
+def test_bpz_preestimation_noprior():
+    zp_off = np.zeros(6)
+    pre_est_dict = dict(zp_offsets=zp_off,
+                        only_type=True,
+                        no_prior=True,
+                        output="test_preestimation_noprior.hdf5")
+    train_data = tables_io.read(traindata)
+
+    prestage = BPZlitePreEstimator.make_stage(name="test", **pre_est_dict)
+    pre_results = prestage.estimate(train_data)
+
+    newoff = pre_results()['offsets']['zp_offsets']
+    newtypes = pre_results()['types']['broad_type']
+    assert len(newoff) == 6
+    assert len(newtypes) == 100
+    os.remove("test_preestimation_noprior.hdf5")
