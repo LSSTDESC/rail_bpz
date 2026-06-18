@@ -33,7 +33,7 @@ from rail.estimation.estimator import CatEstimator, CatInformer
 from rail.utils.path_utils import RAILDIR
 
 
-default_offset_array = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+default_offset_array = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
 def nzfunc(z, z0, alpha, km, m, m0):  # pragma: no cover
