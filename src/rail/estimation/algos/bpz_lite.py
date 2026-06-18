@@ -447,7 +447,6 @@ class BPZliteEstimator(CatEstimator):
                 f"err_bands, {len(self.config.err_bands)} and "
                 f"filter_list {len(self.config.filter_list)} are not the same!"
             )
-        self.config.zp_offsets = np.array(self.config.zp_offsets)
 
     def _initialize_run(self):
         super()._initialize_run()
@@ -544,7 +543,7 @@ class BPZliteEstimator(CatEstimator):
                 detmask = np.isclose(data[bandname], self.config.nondetect_val)
             # Subtract off the zero point offsets
             if self.config.override_file_offsets:
-                zpoff = self.config.zp_offsets
+                zpoff = np.array(self.config.zp_offsets)
             else:
                 zpoff = self.zp_off_from_file
             data[bandname] -= zpoff[ii]
