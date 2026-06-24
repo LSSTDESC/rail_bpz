@@ -201,7 +201,7 @@ class BPZlitePreEstimator(CatEstimator):
         from desc_bpz.bpz_tools_py3 import ABflux
 
         new_file = f"{spectrum}.{filter_}.AB"
-        print(f"  Generating new AB file {new_file}....")
+        self.log.info(f"  Generating new AB file {new_file}....")
         ABflux(spectrum, filter_, self.config.madau_flag)
 
     def _preprocess_magnitudes(self, data):
