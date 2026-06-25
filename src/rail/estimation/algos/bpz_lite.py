@@ -186,7 +186,7 @@ class BPZliteInformer(CatInformer):
             # minimizer can sometimes give fractions greater than one, if so normalize
             fracnorm = np.sum(tmpfo)
             if fracnorm > 1.0:  # pragma: no cover
-                print("bad norm for f0, normalizing")
+                self.log.warning("bad norm for f0, normalizing")
                 tmpfo /= fracnorm
             self.fo_arr = tmpfo
             self.kt_arr = np.fabs(frac_results[self.ntyp - 1 :])
@@ -217,7 +217,7 @@ class BPZliteInformer(CatInformer):
         a_arr = np.ones(self.ntyp)
         km_arr = np.ones(self.ntyp)
         for i in range(self.ntyp):
-            print(f"minimizing for type {i}")
+            self.log.info(f"minimizing for type {i}")
             self.typmask = self.besttypes == i
             dndzparams = np.hstack(
                 [self.config.init_zo, self.config.init_alpha, self.config.init_km]
@@ -228,7 +228,7 @@ class BPZliteInformer(CatInformer):
             zo_arr[i] = result[0]
             a_arr[i] = result[1]
             km_arr[i] = result[2]
-            print(f"best fit z0, alpha, km for type {i}: {result}")
+            self.log.info(f"best fit z0, alpha, km for type {i}: {result}")
         return zo_arr, km_arr, a_arr
 
     def _get_broad_type(self, ngal):
@@ -296,12 +296,12 @@ class BPZliteInformer(CatInformer):
             self.besttypes = broad_types[mask]
 
             numused = len(self.besttypes)
-            print(f"using {numused} galaxies in calculation")
+            self.log.info(f"using {numused} galaxies in calculation")
 
             self._find_fractions()
-            print("best values for fo and kt:")
-            print(self.fo_arr)
-            print(self.kt_arr)
+            self.log.info("best values for fo and kt:")
+            self.log.info(self.fo_arr)
+            self.log.info(self.kt_arr)
             self.zo_arr, self.km_arr, self.a_arr = self._find_dndz_params()
             self.a_arr = np.abs(self.a_arr)
 
@@ -518,7 +518,7 @@ class BPZliteEstimator(CatEstimator):
         from desc_bpz.bpz_tools_py3 import ABflux
 
         new_file = f"{spectrum}.{filter_}.AB"
-        print(f"  Generating new AB file {new_file}....")
+        self.log.info(f"  Generating new AB file {new_file}....")
         ABflux(spectrum, filter_, self.config.madau_flag)
 
     def _preprocess_magnitudes(self, data):
