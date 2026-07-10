@@ -149,20 +149,20 @@ def test_bpz_wHDFN_prior(inputdata, groupname):
             RAIL_BPZ_DIR, "rail/examples_data/estimation_data/configs/test_bpz.columns"
         ),
         "spectra_file": "CWWSB4.list",
-        "madau_flag": "no",
         "ref_band": "mag_i_lsst",
         "prior_file": "flat",
         "p_min": 0.005,
         "gauss_kernel": 0.1,
         "zp_errors": np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01]),
         "mag_err_min": 0.005,
+        "madau_flag": "yes",
         "hdf5_groupname": groupname,
         "nt_array": [1, 2, 5],
         "model": os.path.join(
             RAILDIR, "rail/examples_data/estimation_data/data/CWW_HDFN_prior.pkl"
         ),
     }
-    zb_expected = np.array([0.18, 2.88, 0.14, 0.19, 2.91, 0.18, 0.21, 0.21, 2.98, 2.92])
+    zb_expected = np.array([0.18, 2.35, 0.14, 0.19, 2.91, 0.18, 0.21, 0.21, 2.94, 2.93])
 
     # validation_data = DS.read_file("validation_data", TableHandle, inputdata)
     validation_data = TableHandle("validation_data", path=inputdata)
@@ -276,6 +276,7 @@ def test_bpz_preestimation_onlytype():
 def test_bpz_preestimation_noprior():
     zp_off = np.zeros(6)
     pre_est_dict = dict(zp_offsets=zp_off,
+                        madau_flag="yes",
                         only_type=True,
                         no_prior=True,
                         output="test_preestimation_noprior.hdf5")
