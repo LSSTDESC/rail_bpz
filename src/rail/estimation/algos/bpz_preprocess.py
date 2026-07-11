@@ -188,19 +188,23 @@ class BPZlitePreEstimator(CatEstimator):
 
         for i, s in enumerate(spectra):
             for j, f in enumerate(filters):
-                model = f"{s}.{f}.AB"
+                if self.config.madau_flag == "yes":
+                    mflag = "withmadau"
+                else:
+                    mflag = "nomadau"
+                model = f"{s}.{f}.{mflag}.AB"
                 if model not in ab_file_db:  # pragma: no cover
-                    self._make_new_ab_file(s, f)
+                    self._make_new_ab_file(s, f, mflag)
                 model_path = os.path.join(bpz_ref_data_path, "AB", model)
                 zo, f_mod_0 = get_data(model_path, (0, 1))
                 flux_templates[:, i, j] = match_resol(zo, f_mod_0, z)
 
         return flux_templates
 
-    def _make_new_ab_file(self, spectrum, filter_):  # pragma: no cover
+    def _make_new_ab_file(self, spectrum, filter_, mflag):  # pragma: no cover
         from desc_bpz.bpz_tools_py3 import ABflux
 
-        new_file = f"{spectrum}.{filter_}.AB"
+        new_file = f"{spectrum}.{filter_}.{mflag}.AB"
         self.log.info(f"  Generating new AB file {new_file}....")
         ABflux(spectrum, filter_, self.config.madau_flag)
 
